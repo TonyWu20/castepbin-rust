@@ -13,7 +13,8 @@ use nom::{
     error::Error,
     multi::{length_data, many0, many1},
     number::complete::{
-        be_f32, be_f64, be_i16, be_i32, be_i64, be_i8, be_u16, be_u32, be_u8, hex_u32, le_i32,
+        be_f32, be_f64, be_i16, be_i32, be_i64, be_i8, be_u16, be_u32, be_u8, hex_u32, le_f32,
+        le_i32,
     },
     sequence::{delimited, preceded, terminated, tuple},
     HexDisplay, IResult,
@@ -24,6 +25,8 @@ const END_DUMP: &[u8] = &[
     0x55, 0x4d, 0x50, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00,
     0x00, 0x1e,
 ];
+const BOHR_RADIUS: f64 = 1.88973;
+const AMU: f64 = 1822.8839;
 
 fn find_string_header(data: &[u8]) -> IResult<&[u8], &[u8]> {
     let (i, record_marker) = take(4 as usize)(data)?;
@@ -51,6 +54,10 @@ fn match_end_of_param_dump(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_until(END_DUMP)(data)
 }
 
+fn parse_multi_f64(data: &[u8]) -> IResult<&[u8], Vec<f64>> {
+    many0(be_f64)(data)
+}
+
 #[test]
 fn test_parser() {
     let file = fs::read("./Si2.castep_bin").unwrap();
@@ -63,23 +70,41 @@ fn test_parser() {
     parse_result.1.iter().enumerate().for_each(|(i, record)| {
         let (mark_st, data, mark_ed) = record;
         let length = parse_u32(*mark_st).unwrap().1;
+        if i == 2 || i == 4 || i == 6 || i == 176 {
+            let mut array = parse_multi_f64(data).unwrap().1;
+            array.iter_mut().for_each(|val| {
+                if i == 6 {
+                    *val = *val / BOHR_RADIUS / BOHR_RADIUS;
+                }
+                *val = *val / BOHR_RADIUS;
+            });
+            println!("{:#.7?}", array);
+            return;
+        }
+        if i == 18 || i == 26 {
+            let array = parse_multi_f64(data).unwrap().1;
+            println!("{:#.7?}", array);
+            return;
+        }
         if i == 28 {
             println!("{:x?}", data);
-            println!(
-                "{}, {}",
-                parse_f32(data).unwrap().1,
-                parse_f64(data).unwrap().1
-            );
+            println!("{}", parse_f64(data).unwrap().1 / AMU);
+            return;
+        }
+        if i == 30 {
+            println!("{}", from_utf8(data).unwrap());
+            return;
         }
         if i == 8 || i == 10 || i == 12 {
             println!("{:x?}", data);
             println!("{}", parse_u32(data).unwrap().1);
+            return;
         }
         if length == 8 {
             match many0(parse_f64)(data) {
                 Ok(num) => {
                     num.1.iter().for_each(|f| {
-                        print!("{f}");
+                        print!("64:{f}");
                     });
                     println!("");
                     return;
@@ -97,11 +122,11 @@ fn test_parser() {
             }
             Err(e) => match parse_f32(data) {
                 Ok(num) => {
-                    println!("{i}:{}", num.1);
+                    println!("f32 {i}:{}", num.1);
                     return;
                 }
                 Err(e) => match parse_f64(data) {
-                    Ok(num) => println!("{i}:{}", num.1),
+                    Ok(num) => println!("f64: {i}:{}", num.1),
                     Err(e) => println!("Length:{}, {:?}, {:x?}", length, e, data),
                 },
             },
