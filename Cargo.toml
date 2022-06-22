@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 nom = "*"
 nalgebra = "*"
+itertools-num = "0"
+plotlib = "0"
