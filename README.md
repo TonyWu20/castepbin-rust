@@ -18,6 +18,7 @@ Project Started.
 2. Begin writing parser for `.pdos_weights`
 ### 2022-06-22
 1. First version of codes relating to parsing `.pdos_weights`
+2. First commit of `.bands` parser.
 
 ## Notes
 I will share some essential information about the binary files from `CASTEP`.
