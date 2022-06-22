@@ -7,11 +7,23 @@ use crate::{
     parser::{
         castep_bin::match_end_of_cell_global,
         general::{parse_f32, parse_multi_u32},
+        pdos_weights::PDOSWeight,
         END_CELL_GLOBAL,
     },
     Matrix3, MatrixXx3, AMU, BOHR_RADIUS,
 };
 
+#[test]
+fn test_pdos_weights_struct() {
+    let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights").unwrap();
+    let (_, pdos_weight) = PDOSWeight::parse(&file).unwrap();
+    println!("Si_2");
+    println!("{:#?}", pdos_weight);
+    let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights").unwrap();
+    let (_, pdos_weight) = PDOSWeight::parse(&file).unwrap();
+    println!("Pt_310");
+    println!("{:#?}", pdos_weight);
+}
 #[ignore]
 #[test]
 fn test_new_parser() {
