@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_imports)]
+#![allow(clippy::too_many_arguments, dead_code, unused_imports)]
 use std::{fs, str::from_utf8};
 
 use na::{Matrix3, MatrixXx3, OMatrix, Vector3};

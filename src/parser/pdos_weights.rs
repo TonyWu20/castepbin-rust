@@ -85,21 +85,53 @@ impl PDOSWeight {
             ),
         ))
     }
+
+    pub fn num_kpoints(&self) -> u32 {
+        self.num_kpoints
+    }
+
+    pub fn num_spins(&self) -> u32 {
+        self.num_spins
+    }
+
+    pub fn num_orbitals(&self) -> u32 {
+        self.num_orbitals
+    }
+
+    pub fn num_eigenvalues(&self) -> u32 {
+        self.num_eigenvalues
+    }
+
+    pub fn species_no(&self) -> &[u32] {
+        self.species_no.as_ref()
+    }
+
+    pub fn rank_in_species(&self) -> &[u32] {
+        self.rank_in_species.as_ref()
+    }
+
+    pub fn am_channel(&self) -> &[u32] {
+        self.am_channel.as_ref()
+    }
+
+    pub fn weight_data(&self) -> &[KpointOrbitalWeights] {
+        self.weight_data.as_ref()
+    }
 }
 
-/*
-** Struct for orbital weights of each k-point
-** The orbital weight data in <seed>.pdos_weights are formatted as:
-** ...(general information lines)
-** nth_k-point, [x, y, z] (k-point vector)
-** Spin number (1, 2 if spin-polarised and down-spin)
-** weight for 1st eigenvalue, [f64; number of orbitals]
-** ... (continue for other eigenvalue)
-** Spin number
-** weights
-** next k-point, [x,y,z],
-** ... (continue as above)
-** END
+/**
+ Struct for orbital weights of each k-point
+ The orbital weight data in <seed>.pdos_weights are formatted as:
+ ...(general information lines)
+ nth_k-point, [x, y, z] (k-point vector)
+ Spin number (1, 2 if spin-polarised and down-spin)
+ weight for 1st eigenvalue, [f64; number of orbitals]
+ ... (continue for other eigenvalue)
+ Spin number
+ weights
+ next k-point, [x,y,z],
+ ... (continue as above)
+ END
 */
 #[derive(Debug)]
 pub struct KpointOrbitalWeights {
@@ -119,6 +151,18 @@ impl KpointOrbitalWeights {
             kpoint_vectors,
             orbital_weight_items,
         }
+    }
+
+    pub fn nth_kpoint(&self) -> u32 {
+        self.nth_kpoint
+    }
+
+    pub fn kpoint_vectors(&self) -> &[f64] {
+        self.kpoint_vectors.as_ref()
+    }
+
+    pub fn orbital_weight_items(&self) -> &[OrbitalWeight] {
+        self.orbital_weight_items.as_ref()
     }
 }
 
@@ -140,5 +184,13 @@ impl OrbitalWeight {
         let (i, num_eigen) = parse_u32_from_record(i)?;
         let (i, all_weights) = count(parse_multi_f64_from_record, num_eigen as usize)(i)?;
         Ok((i, Self::new(spin_number, all_weights)))
+    }
+
+    pub fn spin(&self) -> u32 {
+        self.spin
+    }
+
+    pub fn weights_for_eigen(&self) -> &[Vec<f64>] {
+        self.weights_for_eigen.as_ref()
     }
 }

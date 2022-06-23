@@ -13,7 +13,7 @@ pub fn parse_record(data: &[u8]) -> IResult<&[u8], &[u8]> {
     // let (_, record_marker) = take(4 as u32)(data)?;
     // let (_, record_length) = be_u32(record_marker)?;
     // tuple((take(4 as u32), take(record_length), take(4 as u32)))(data)
-    terminated(length_data(be_u32), take(4 as u32))(data)
+    terminated(length_data(be_u32), take(4_u32))(data)
 }
 
 fn parse_record_and_data(data: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
@@ -55,7 +55,7 @@ pub fn parse_i32(data: &[u8]) -> IResult<&[u8], i32> {
 }
 pub fn decimal(input: &str) -> IResult<&str, u32> {
     map_res(recognize(many1(one_of("0123456789"))), |out: &str| {
-        u32::from_str_radix(out, 10)
+        out.parse::<u32>()
     })(input)
 }
 pub fn float(input: &str) -> IResult<&str, f64> {
@@ -78,19 +78,4 @@ pub fn float(input: &str) -> IResult<&str, f64> {
         )),
         |out: &str| out.parse::<f64>(),
     )(input)
-}
-
-#[test]
-fn test_decimal_float() {
-    let dec_str = "1    ";
-    assert_eq!(1, decimal(dec_str).unwrap().1);
-    println!(
-        r#""{}", {}"#,
-        decimal(dec_str).unwrap().0,
-        decimal(dec_str).unwrap().1
-    );
-    let float_str = "0.00000000  ";
-    let parse_float = float(float_str).unwrap();
-    assert_eq!(0.0, parse_float.1);
-    println!(r#""{}", {}"#, parse_float.0, parse_float.1);
 }
