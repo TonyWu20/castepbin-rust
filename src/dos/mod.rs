@@ -9,7 +9,6 @@ const HATREE_TO_EV: f64 = 27.211396641308;
 // Compute total dos by given eigenvalues of kpoints and fermi energy
 pub fn compute_dos(eigen_values: Vec<f64>, fermi_energy: f64) -> (Vec<f64>, Vec<f64>) {
     let energy_kn: Vec<f64> = eigen_values
-        .clone()
         .iter()
         .map(|e| -> f64 { (e - fermi_energy) * HATREE_TO_EV })
         .collect();
@@ -36,17 +35,16 @@ pub fn compute_dos(eigen_values: Vec<f64>, fermi_energy: f64) -> (Vec<f64>, Vec<
 fn _e_delta(e: f64, de: f64) -> f64 {
     let _a: f64 = 2.0 * (2.0_f64.ln());
     let smear = SMEARING_WIDTH * 2.0 * _a.sqrt();
-    let x = (-((e - de) / smear).powi(2)).exp() / (PI.sqrt() * smear);
-    x
+    (-((e - de) / smear).powi(2)).exp() / (PI.sqrt() * smear)
 }
-fn e_delta(energies: &Vec<f64>, de: f64) -> Vec<f64> {
+fn e_delta(energies: &[f64], de: f64) -> Vec<f64> {
     energies
         .iter()
         .map(|e| -> f64 { _e_delta(*e, de) })
         .collect()
 }
 
-#[test]
+#[cfg(test)]
 fn test_dos_compute() {
     let eigenvalues: Vec<f64> = vec![
         -0.36823620,
