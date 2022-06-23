@@ -58,6 +58,11 @@ pub fn decimal(input: &str) -> IResult<&str, u32> {
         out.parse::<u32>()
     })(input)
 }
+pub fn decimal_u8(input: &str) -> IResult<&str, u8> {
+    map_res(recognize(many1(one_of("0123456789"))), |out: &str| {
+        out.parse::<u8>()
+    })(input)
+}
 pub fn float(input: &str) -> IResult<&str, f64> {
     map_res(
         alt((
