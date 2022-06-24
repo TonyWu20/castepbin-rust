@@ -15,14 +15,22 @@ use crate::{
 
 #[test]
 fn test_pdos_weights_struct() {
-    let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights").unwrap();
+    // let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
+    // .expect("Error opening pdos_weights");
+    let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights")
+        .expect("Error opening pdos_weights");
     let (_, pdos_weight) = PDOSWeight::parse(&file).unwrap();
-    println!("Si_2");
-    println!("{:#?}", pdos_weight);
-    let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights").unwrap();
-    let (_, pdos_weight) = PDOSWeight::parse(&file).unwrap();
-    println!("Pt_310");
-    println!("{:#?}", pdos_weight);
+    println!("{}", pdos_weight.orbital_eigen_weights().len());
+    println!(
+        "{:#?}",
+        pdos_weight.orbital_eigen_weights()[0].eigen_weights_for_each_k()[0]
+            .weights_for_each_eigen()
+    )
+    // let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
+    //     .expect("Error opening pdos_weights");
+    // let (_, pdos_weight) = PDOSWeight::parse(&file).expect("Error Pt");
+    // println!("Pt_310");
+    // println!("{:#?}", pdos_weight);
 }
 #[ignore]
 #[test]
