@@ -30,7 +30,7 @@ fn test_total_dos() {
     use std::fs;
 
     use itertools_num::linspace;
-    use plotlib::{page::Page, style::LineStyle, view::ContinuousView};
+    use plotlib::{page::Page, repr::Plot, style::LineStyle, view::ContinuousView};
 
     use crate::dos::dos_compute;
 
@@ -54,7 +54,7 @@ fn test_total_dos() {
     let down_dos_plot =
         plotlib::repr::Plot::new(down).line_style(LineStyle::new().colour("#aaff55"));
     let zeros = plotlib::repr::Plot::new(
-        linspace(-25., 20., total_dos.num_points() as usize)
+        linspace(-20., 16., total_dos.num_points() as usize)
             .into_iter()
             .collect::<Vec<f64>>()
             .into_iter()
@@ -62,11 +62,23 @@ fn test_total_dos() {
             .collect(),
     )
     .line_style(LineStyle::new().colour("#000000"));
+    let vertical_zero = Plot::new(
+        vec![0.0; total_dos.num_points() as usize]
+            .into_iter()
+            .zip(linspace(-22.0, 22.0, total_dos.num_points() as usize))
+            .collect(),
+    )
+    .line_style(LineStyle::new().colour("#000000"));
     let v = ContinuousView::new()
+        .add(zeros)
+        .add(vertical_zero)
         .add(up_dos_plot)
         .add(down_dos_plot)
-        .add(zeros)
-        .x_range(-25., 20.);
-    Page::single(&v).save("dos.svg").unwrap();
+        .x_range(-20., 16.)
+        .x_max_ticks(73)
+        .y_max_ticks(45);
+    Page::single(&v)
+        .dimensions(2160, 1080)
+        .save("dos.svg")
+        .unwrap();
 }
-

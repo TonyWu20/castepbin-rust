@@ -114,9 +114,15 @@ Gaussian smearing
 e from given range, de from k-point eigenvalue
 */
 fn gaussian_smearing(e: f64, de: f64) -> f64 {
-    let _a: f64 = 2.0 * (2.0_f64.ln());
-    let smear = SMEARING_WIDTH * 2.0 * _a.sqrt();
-    (-((e - de) / smear).powi(2)).exp() / (PI.sqrt() * smear)
+    /*
+    The smearing here is the standard deviation
+    Same as implemented in CASTEP
+    */
+    let smear = SMEARING_WIDTH;
+    /*
+    g(x) = 1 / (σ*sqrt(2PI)) * exp(-1/2 * (e - de)^2/σ^2)
+    */
+    (-((e - de) / (smear)).powi(2) / 2.0).exp() / ((2.0 * PI).sqrt() * smear)
 }
 /**
 Generate energies centered at the given k-point
