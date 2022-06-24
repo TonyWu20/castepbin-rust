@@ -19,6 +19,11 @@ Project Started.
 ### 2022-06-22
 1. First version of codes relating to parsing `.pdos_weights`
 2. First commit of `.bands` parser.
+### 2022-06-23
+1. First commit of calculation routine of total DOS from `.bands`
+### 2022-06-24
+1. Corrected used formula and smearing parameter for gaussian smearing. Consistent with CASTEP in MS.
+2. Optimized parsed data structures for `.pdos_weights`, for better data acquisition based on orbital.
 
 ## Notes
 I will share some essential information about the binary files from `CASTEP`.
