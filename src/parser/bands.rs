@@ -363,16 +363,3 @@ impl KPointEigenValues {
         }
     }
 }
-
-#[test]
-fn test_parse_bands() {
-    let data =
-        fs::read_to_string("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.bands").unwrap();
-    let (_, bands_data) = Bands::parse(&data).unwrap();
-    assert_eq!(4, bands_data.num_kpts());
-    assert_eq!(2, bands_data.num_spins());
-    assert_eq!(vec![137.0, 113.0], bands_data.num_electrons());
-    assert_eq!(vec![209, 209], bands_data.num_eigenvalues());
-    assert_eq!(vec![-0.324481, -0.324481], bands_data.e_fermi());
-    assert_eq!(4, bands_data.kpt_eigen_energies_array().nth_kpts().len());
-}

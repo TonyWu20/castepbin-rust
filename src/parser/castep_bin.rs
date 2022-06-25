@@ -116,7 +116,7 @@ pub struct CellGlobal {
     bs_kpoint_weights: Vec<f64>,
 }
 
-trait FromCastepCheck {
+pub trait FromCastepCheck {
     type ParsedStruct;
     fn parser(data: &[u8]) -> IResult<&[u8], Self::ParsedStruct>;
 }
@@ -201,20 +201,3 @@ impl FromCastepCheck for UnitCell {
     }
 }
 // #[ignore]
-#[test]
-fn test_unit_cell() {
-    let file = fs::read("./Pt_311/Pt_311_12lyr_v20_CO.castep_bin").unwrap();
-    let (cell_content, _) = skip_to_optimized_cell(&file).unwrap();
-    let (_, cell) = UnitCell::parser(&cell_content).unwrap();
-    println!("{}", cell.ionic_positions.len());
-    println!("{:?}", cell.species_symbol);
-    cell.ionic_positions.iter().for_each(|pos_array| {
-        println!("{:.3?}", pos_array);
-    });
-    println!(
-        "{}, {}, {}",
-        cell.max_ions_in_species, cell.num_species, cell.ionic_charge_real
-    );
-    println!("Num ion in species {:?}", cell.num_ions_in_species);
-    println!("Num ions, {}", cell.num_ions);
-}

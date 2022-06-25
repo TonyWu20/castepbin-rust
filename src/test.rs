@@ -13,6 +13,16 @@ use crate::{
     Matrix3, MatrixXx3, AMU, BOHR_RADIUS,
 };
 
+#[cfg(test)]
+#[test]
+fn test_unit_cell() {
+    use crate::parser::castep_bin::{skip_to_optimized_cell, FromCastepCheck, UnitCell};
+
+    let file = fs::read("./Pt_311/Pt_311_12lyr_v20_CO.castep_bin").unwrap();
+    let (cell_content, _) = skip_to_optimized_cell(&file).unwrap();
+    let (_, cell) = UnitCell::parser(&cell_content).unwrap();
+}
+#[cfg(test)]
 #[test]
 fn test_pdos_weights_struct() {
     // let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
@@ -23,8 +33,7 @@ fn test_pdos_weights_struct() {
     println!("{}", pdos_weight.orbital_eigen_weights().len());
     println!(
         "{:#?}",
-        pdos_weight.orbital_eigen_weights()[0].eigen_weights_for_each_k()[0]
-            .weights_for_each_eigen()
+        pdos_weight.orbital_eigen_weights()[0].eigen_weights_for_each_k()[0].weights()
     )
     // let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
     //     .expect("Error opening pdos_weights");
@@ -33,6 +42,7 @@ fn test_pdos_weights_struct() {
     // println!("{:#?}", pdos_weight);
 }
 #[ignore]
+#[cfg(test)]
 #[test]
 fn test_new_parser() {
     let file = fs::read("./Si2.castep_bin").unwrap();
@@ -111,6 +121,7 @@ fn test_new_parser() {
 }
 
 #[ignore]
+#[cfg(test)]
 #[test]
 fn test_pdos_weights() {
     let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights").unwrap();
@@ -140,6 +151,7 @@ fn test_pdos_weights() {
     });
 }
 #[ignore]
+#[cfg(test)]
 #[test]
 fn test_parser() {
     let file = fs::read("./Si2.castep_bin").unwrap();
@@ -202,22 +214,3 @@ fn test_parser() {
         }
     })
 }
-
-// #[test]
-// fn test_float() {
-//     let file = fs::read("./Pt_311_12lyr_v20_CO.pdos_weights").unwrap();
-//     let parse_result = many0(parse_record)(&file).unwrap();
-//     println!("{:x?}", parse_result.0);
-//     parse_result.1.iter().enumerate().for_each(|(i, record)| {
-//         let (mark_st, data, mark_ed) = record;
-//         let length = parse_u32(*mark_st).unwrap().1;
-//         println!("{i} Length: {}", length);
-//         if i == 7 {
-//             println!("{:x?}", data);
-//         }
-//         match parse_multi_f64(data) {
-//             Ok(float) => println!("64 {i}: {:#.7?}", float.1),
-//             Err(_) => println!("{i}: {:#.7}", parse_u32(data).unwrap().1),
-//         }
-//     });
-// }
