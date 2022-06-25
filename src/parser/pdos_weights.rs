@@ -79,7 +79,7 @@ impl PDOSWeight {
         hashtable
     }
 
-    pub fn parse<'a>(data: &'a [u8]) -> IResult<&'a [u8], Self> {
+    pub fn parse(data: &[u8]) -> IResult<&[u8], Self> {
         let (i, n_kpts) = parse_u8_from_record(data)?; // Line for num of k-points
         let (i, n_spins) = parse_u8_from_record(i)?; // Line for num of spins
         let (i, n_orbitals) = parse_u32_from_record(i)?; // Line for num of orbitals
@@ -215,7 +215,7 @@ impl KpointOrbitalWeightsAtEigen {
         self.kpoint_vectors.as_ref()
     }
 
-    pub fn orbital_weight_items(&self) -> &Vec<OrbitalWeightAtEigen> {
+    pub fn orbital_weight_items(&self) -> &[OrbitalWeightAtEigen] {
         self.orbital_weight_items.as_ref()
     }
 }
@@ -249,7 +249,7 @@ impl OrbitalWeightAtEigen {
         self.spin
     }
 
-    pub fn weights_for_eigen(&self) -> &Vec<Vec<f64>> {
+    pub fn weights_for_eigen(&self) -> &[Vec<f64>] {
         self.weights_for_eigen.as_ref()
     }
 }
@@ -257,16 +257,26 @@ impl OrbitalWeightAtEigen {
 /// Struct containing the weights for every eigenvalues of this orbital.
 #[derive(Debug)]
 pub struct EigenWeightPerOrb {
-    ///! Length of the vector equals to number of k-points.
     num_spins: u8,
-    eigen_weights_for_each_k: Vec<UnitOrbitalWeight>,
+    /*
+    The layout is:
+    -> 1st k-point : [weight_n1, weight_n2, ... weight_nx] for orbital.
+    -> 2nd k-point : ...
+    */
+    weight_matrix: Vec<UnitOrbitalWeight>,
+    downspin_weight_matrix: Option<Vec<UnitOrbitalWeight>>,
 }
 
 impl EigenWeightPerOrb {
-    pub fn new(num_spins: u8, eigen_weights_for_each_k: Vec<UnitOrbitalWeight>) -> Self {
+    pub fn new(
+        num_spins: u8,
+        weight_matrix: Vec<UnitOrbitalWeight>,
+        downspin_weight_matrix: Option<Vec<UnitOrbitalWeight>>,
+    ) -> Self {
         Self {
             num_spins,
-            eigen_weights_for_each_k,
+            weight_matrix,
+            downspin_weight_matrix,
         }
     }
 
@@ -274,35 +284,32 @@ impl EigenWeightPerOrb {
         self.num_spins
     }
 
-    pub fn eigen_weights_for_each_k(&self) -> &[UnitOrbitalWeight] {
-        self.eigen_weights_for_each_k.as_ref()
+    pub fn upspin(&self) -> &[UnitOrbitalWeight] {
+        self.weight_matrix.as_ref()
     }
-    pub fn upspin(&self) -> &UnitOrbitalWeight {
-        &self.eigen_weights_for_each_k[0]
-    }
-    pub fn downspin(&self) -> &UnitOrbitalWeight {
-        &self.eigen_weights_for_each_k[1]
+    pub fn downspin(&self) -> Option<&Vec<UnitOrbitalWeight>> {
+        self.downspin_weight_matrix.as_ref()
     }
     pub fn from_array_of_kpoint_orbital_weight(
-        array_kpow: &Vec<KpointOrbitalWeightsAtEigen>,
+        array_kpow: &[KpointOrbitalWeightsAtEigen],
         orbital_id: usize,
     ) -> Self {
         if array_kpow[0].orbital_weight_items().len() == 2 {
             let spin_up_weight_total = Self::collect_weight_for_orbital(array_kpow, orbital_id, 1);
             let spin_down_weight_total =
                 Self::collect_weight_for_orbital(array_kpow, orbital_id, 2);
-            Self::new(2_u8, vec![spin_up_weight_total, spin_down_weight_total])
+            Self::new(2_u8, spin_up_weight_total, Some(spin_down_weight_total))
         } else {
             let total = Self::collect_weight_for_orbital(array_kpow, orbital_id, 1);
-            Self::new(1_u8, vec![total])
+            Self::new(1_u8, total, None)
         }
     }
     /// Helper function to collect merged weights for selected orbital
     fn collect_weight_for_orbital(
-        array_kpow: &Vec<KpointOrbitalWeightsAtEigen>,
+        array_kpow: &[KpointOrbitalWeightsAtEigen],
         orbital_id: usize,
         spin: usize,
-    ) -> UnitOrbitalWeight {
+    ) -> Vec<UnitOrbitalWeight> {
         // for every item in array_kpow
         //      item is a KpointOrbitalWeights (index = k-point num)
         // for every item in KpointOrbitalWeights.orbital_weight_items
@@ -313,30 +320,17 @@ impl EigenWeightPerOrb {
         // For the moment, directly merge with k-point weight to return the
         // k-point-weighted eigenvalue weight for the chosen orbital.
         // spin_up_matrix[nth_kpt][nth_eigen_values][nth_orbitals]
-        let spin_matrix: Vec<Vec<f64>> = array_kpow
+        array_kpow
             .iter()
-            .map(|item| -> Vec<f64> {
-                item.orbital_weight_items()[spin - 1] // up-spin
-                    .weights_for_eigen() // get &Vec<Vec<f64>
+            .map(|item| -> UnitOrbitalWeight {
+                let weights_per_eigen_of_orbital = item.orbital_weight_items()[spin - 1] // up-spin or down-spin
+                    .weights_for_eigen() // get &[Vec<f64>]
                     .iter()
                     .map(|weight_at_eigen| -> f64 { weight_at_eigen[orbital_id] })
-                    .collect()
+                    .collect();
+                UnitOrbitalWeight::new(weights_per_eigen_of_orbital)
             })
-            .collect();
-        let mut merged_vector = vec![0.0; spin_matrix[0].len()];
-        spin_matrix
-            .iter()
-            // every k-point
-            .for_each(|item| {
-                //item is the weight at eigenvalue
-                item.iter().enumerate().for_each(|(i, val)| {
-                    // Merge weights at all eigenvalue for this orbital
-                    merged_vector[i] += val;
-                })
-            });
-        UnitOrbitalWeight {
-            weights_for_each_eigen: merged_vector,
-        }
+            .collect()
     }
 }
 

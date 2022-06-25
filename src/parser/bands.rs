@@ -254,7 +254,7 @@ impl KPointEnergiesVec {
             eigen_energies,
         }
     }
-    pub fn from_array_of_struct(kpe_array: &Vec<KPointEnergies>) -> Self {
+    pub fn from_array_of_struct(kpe_array: &[KPointEnergies]) -> Self {
         let mut nth_kpts_array: Vec<u8> = vec![];
         let (mut kpt_x, mut kpt_y, mut kpt_z) = (vec![], vec![], vec![]);
         let mut kpt_weight_array: Vec<f64> = vec![];
