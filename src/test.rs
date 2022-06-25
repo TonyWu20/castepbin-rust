@@ -25,16 +25,13 @@ fn test_unit_cell() {
 #[cfg(test)]
 #[test]
 fn test_pdos_weights_struct() {
-    // let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
-    // .expect("Error opening pdos_weights");
-    let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights")
+    let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
         .expect("Error opening pdos_weights");
+    // let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights")
+    // .expect("Error opening pdos_weights");
     let (_, pdos_weight) = PDOSWeight::parse(&file).unwrap();
     println!("{}", pdos_weight.orbital_eigen_weights().len());
-    println!(
-        "{:#?}",
-        pdos_weight.orbital_eigen_weights()[0].eigen_weights_for_each_k()[0].weights()
-    )
+    println!("{:#?}", pdos_weight.eigen_weights_at_orbital(3).upspin())
     // let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
     //     .expect("Error opening pdos_weights");
     // let (_, pdos_weight) = PDOSWeight::parse(&file).expect("Error Pt");
@@ -199,12 +196,10 @@ fn test_parser() {
                     "{i}:{}",
                     str.trim_end().trim_matches('\0').trim_end_matches('\n') // str
                 );
-                
             }
             Err(_) => match parse_f32(data) {
                 Ok(num) => {
                     println!("f32 {i}:{}", num.1);
-                    
                 }
                 Err(_) => match parse_f64(data) {
                     Ok(num) => println!("f64: {i}:{}", num.1),
