@@ -161,6 +161,9 @@ impl PDOSWeight {
     pub fn orbital_eigen_weights(&self) -> &[EigenWeightPerOrb] {
         self.orbital_eigen_weights.as_ref()
     }
+    pub fn eigen_weights_at_orbital(&self, orbital_id: u32) -> &EigenWeightPerOrb {
+        &self.orbital_eigen_weights[orbital_id as usize]
+    }
 }
 
 /**
@@ -277,6 +280,12 @@ impl EigenWeightPerOrb {
     pub fn eigen_weights_for_each_k(&self) -> &[UnitOrbitalWeight] {
         self.eigen_weights_for_each_k.as_ref()
     }
+    pub fn upspin(&self) -> &UnitOrbitalWeight {
+        &self.eigen_weights_for_each_k[0]
+    }
+    pub fn downspin(&self) -> &UnitOrbitalWeight {
+        &self.eigen_weights_for_each_k[1]
+    }
     pub fn from_array_of_kpoint_orbital_weight(
         array_kpow: &Vec<KpointOrbitalWeightsAtEigen>,
         orbital_id: usize,
@@ -349,7 +358,7 @@ impl UnitOrbitalWeight {
         }
     }
 
-    pub fn weights_for_each_eigen(&self) -> &[f64] {
+    pub fn weights(&self) -> &[f64] {
         self.weights_for_each_eigen.as_ref()
     }
 }
