@@ -23,6 +23,7 @@ extern crate nalgebra as na;
 pub mod dos;
 pub mod parser;
 pub mod test;
+pub mod util;
 
 pub const BOHR_RADIUS: f64 = 1.8897259886;
 pub const AMU: f64 = 1822.8839;
