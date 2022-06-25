@@ -3,6 +3,7 @@ extern crate plotlib;
 
 mod dos_compute;
 mod dos_util;
+mod pdos_util;
 
 #[derive(Debug)]
 pub struct DOS {
