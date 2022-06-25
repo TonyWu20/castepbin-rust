@@ -1,5 +1,8 @@
 /// Computation routine of DOS
-use crate::parser::bands::{Bands, KPointEnergiesVec};
+use crate::{
+    parser::bands::{Bands, KPointEnergiesVec},
+    util::ElementWiseAdd,
+};
 
 use super::DOS;
 
@@ -19,7 +22,7 @@ Compute the total Density of States (DOS).
 # Notes:
   * The function will panic if `num_spins` are larger than 2 -- which usually would not happen.
 */
-pub fn total_dos(band_data: &Bands, energy_range: &Vec<f64>) -> (Vec<f64>, Option<Vec<f64>>) {
+pub fn total_dos(band_data: &Bands, energy_range: &[f64]) -> (Vec<f64>, Option<Vec<f64>>) {
     if band_data.num_spins() == 1 {
         (total_dos_spin(band_data, energy_range, 1_u8), None)
     } else {
@@ -39,57 +42,41 @@ pub fn total_dos(band_data: &Bands, energy_range: &Vec<f64>) -> (Vec<f64>, Optio
 /**
 Helper function to compute the total Density of States (DOS) at given spin.
 */
-fn total_dos_spin(band_data: &Bands, energy_range: &Vec<f64>, spin: u8) -> Vec<f64> {
+fn total_dos_spin(band_data: &Bands, energy_range: &[f64], spin: u8) -> Vec<f64> {
+    /*
+    vec of energy eigenvalues for every k-point
+    length = number of k-points
+    */
     let eigen_energies_vec = band_data.kpt_eigen_energies_array().eigen_energies();
     let e_fermi = band_data.e_fermi()[spin as usize - 1];
+    // Shift each k-point's eigen energies by fermi energy
     let current_spin_shifted_eigens: Vec<Vec<f64>> = eigen_energies_vec
         .iter()
         .map(|entry| -> Vec<f64> {
             let eigen_at_spin = entry
                 .eigen_at_spin(spin)
                 .unwrap_or_else(|| panic!("No eigenvalues at given spin {}", spin));
-            shift_eigen_by_e_fermi(&eigen_at_spin.to_vec(), e_fermi)
+            shift_eigen_by_e_fermi(eigen_at_spin, e_fermi)
         })
         .collect();
     let k_point_weight_array = band_data.kpt_eigen_energies_array().kpt_weight();
-    let mut dos = vec![0.0; energy_range.len()];
     current_spin_shifted_eigens
         .iter()
-        // to get idx of eigen values, and obtain idx-th k-point weight
-        .enumerate()
-        .for_each(|(i, entry)| {
-            entry // each eigen value list
-                .iter()
-                /*
-                generate delta energies with each value in the list,
-                weighted by their k-point weight
-                */
-                .map(|de| -> Vec<f64> { e_delta(energy_range, *de, k_point_weight_array[i]) })
-                .collect::<Vec<Vec<f64>>>() // Collect to Vector of contribution
-                // Iterate over contributions
-                .iter()
-                // For each contribution
-                .for_each(|list: &Vec<f64>| {
-                    // Iterate over the contribution values
-                    list.iter()
-                        // Turn to enumerate to align with dos vector
-                        .enumerate()
-                        .for_each(|(j, contrib)| {
-                            // Add over the corresponding position
-                            dos[j] += contrib;
-                        })
-                })
-            /*
-            Collection of each eigenvalue's contribution to DOS
-            Length = number of eigenvalues in list
-            */
-        });
-    dos
+        // Pairs with k-point weights
+        .zip(k_point_weight_array.iter())
+        .map(|(de_list_per_k, kpt_weight)| -> Vec<f64> {
+            // E_delta over given energy range
+            // Total DOS so orbital_weights are `None`
+            e_deltas_per_kpt(energy_range, de_list_per_k, *kpt_weight, None)
+        })
+        // Fold vector of vectors into one vector
+        .reduce(|prev, next| -> Vec<f64> { prev.add(&next) })
+        .unwrap()
 }
 /**
-Shift the eigenvalues by fermi energy
+Shift the eigenvalues by fermi energy and convert Hatree to eV
 */
-fn shift_eigen_by_e_fermi(eigen_energies_entry: &Vec<f64>, e_fermi: f64) -> Vec<f64> {
+pub fn shift_eigen_by_e_fermi(eigen_energies_entry: &[f64], e_fermi: f64) -> Vec<f64> {
     eigen_energies_entry
         .iter()
         .map(|e| -> f64 { (e - e_fermi) * HATREE_TO_EV })
@@ -126,9 +113,39 @@ Generate energies centered at the given k-point
 eigenvalue of energy, broadened by Gaussian smearing,
 weighted by given k-point weight value.
 */
-fn e_delta(energies: &Vec<f64>, de: f64, k_point_weight: f64) -> Vec<f64> {
+fn e_delta(energies: &[f64], de: f64, k_point_weight: f64, orbital_weight: f64) -> Vec<f64> {
     energies
         .iter()
-        .map(|e| -> f64 { gaussian_smearing(*e, de) * k_point_weight })
+        .map(|e| -> f64 { gaussian_smearing(*e, de) * k_point_weight * orbital_weight })
         .collect()
+}
+
+pub fn e_deltas_per_kpt(
+    energies: &[f64],
+    de_array: &[f64],
+    k_point_weight: f64,
+    orbital_weight_array: Option<&[f64]>,
+) -> Vec<f64> {
+    // orbital_weight_array has the same length as de_array
+    match orbital_weight_array {
+        Some(orbital_weights) => de_array
+            .iter()
+            .zip(orbital_weights.iter())
+            .map(|(de, orb_weight)| e_delta(energies, *de, k_point_weight, *orb_weight))
+            // Now we have n Vec<f64> of e_delta
+            .reduce(|prev, next| -> Vec<f64> {
+                // merge Vec<_> by zip and map
+                prev.add(&next)
+            })
+            .unwrap(),
+        None => de_array
+            .iter()
+            .map(|de| e_delta(energies, *de, k_point_weight, 1.0))
+            // Now we have n Vec<f64> of e_delta
+            .reduce(|prev, next| -> Vec<f64> {
+                // merge Vec<_> by zip and map
+                prev.add(&next)
+            })
+            .unwrap(),
+    }
 }
