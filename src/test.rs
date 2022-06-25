@@ -20,7 +20,7 @@ fn test_unit_cell() {
 
     let file = fs::read("./Pt_311/Pt_311_12lyr_v20_CO.castep_bin").unwrap();
     let (cell_content, _) = skip_to_optimized_cell(&file).unwrap();
-    let (_, cell) = UnitCell::parser(&cell_content).unwrap();
+    let (_, _cell) = UnitCell::parser(cell_content).unwrap();
 }
 #[cfg(test)]
 #[test]
@@ -89,7 +89,7 @@ fn test_new_parser() {
             return;
         }
         if i > 191 {
-            println!("{:#?}", parse_multi_f64(&header).unwrap().1);
+            println!("{:#?}", parse_multi_f64(header).unwrap().1);
         }
         if i == 28
             || i == 72
@@ -101,7 +101,7 @@ fn test_new_parser() {
             || i == 106
             || i == 4
         {
-            parse_multi_f64(&header).unwrap().1.iter().for_each(|f| {
+            parse_multi_f64(header).unwrap().1.iter().for_each(|f| {
                 if i == 28 {
                     println!("{}", f / AMU);
                 }
@@ -110,7 +110,7 @@ fn test_new_parser() {
 
             return;
         }
-        match from_utf8(&header) {
+        match from_utf8(header) {
             Ok(str) => println!(
                 "{i}:{}",
                 str.trim_end().trim_matches('\n').trim_matches('\0')
@@ -143,7 +143,7 @@ fn test_pdos_weights() {
             println!("{i}: {:x?}", record);
             return;
         }
-        if i >= 10 && i < 18 || i >= 20 {
+        if (10..18).contains(&i) || i >= 20 {
             println!("{i}: {:?}", parse_multi_f64(record).unwrap().1);
             return;
         }
@@ -169,7 +169,7 @@ fn test_parser() {
                 if i == 6 {
                     *val = *val / BOHR_RADIUS / BOHR_RADIUS;
                 }
-                *val = *val / BOHR_RADIUS;
+                *val /= BOHR_RADIUS;
             });
             println!("{:#.7?}", array);
             return;
@@ -199,12 +199,12 @@ fn test_parser() {
                     "{i}:{}",
                     str.trim_end().trim_matches('\0').trim_end_matches('\n') // str
                 );
-                return;
+                
             }
             Err(_) => match parse_f32(data) {
                 Ok(num) => {
                     println!("f32 {i}:{}", num.1);
-                    return;
+                    
                 }
                 Err(_) => match parse_f64(data) {
                     Ok(num) => println!("f64: {i}:{}", num.1),

@@ -31,7 +31,7 @@ pub fn parse_u8_vec_from_u32_vec_record(data: &[u8]) -> IResult<&[u8], Vec<u8>> 
         .map(|v| -> u8 {
             v.to_string()
                 .parse::<u8>()
-                .expect(&format!("Parse to u8 error {}", v))
+                .unwrap_or_else(|_| panic!("Parse to u8 error {}", v))
         })
         .collect();
     Ok((i, u8_vec))

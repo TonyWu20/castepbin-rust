@@ -61,18 +61,15 @@ impl PDOSWeight {
         search_hash: &HashMap<(u8, u8, u8), usize>,
     ) -> Option<usize> {
         let return_idx = search_hash.get(&(species_id as u8, rank_id as u8, am_channel_id as u8));
-        match return_idx {
-            Some(id) => Some(*id),
-            None => None,
-        }
+        return_idx.copied()
     }
 
     fn hash_identity_arrays(&self) -> HashMap<(u8, u8, u8), usize> {
         let mut hashtable = HashMap::new();
         self.species_no()
-            .into_iter()
-            .zip(self.rank_in_species().into_iter())
-            .zip(self.am_channel().into_iter())
+            .iter()
+            .zip(self.rank_in_species().iter())
+            .zip(self.am_channel().iter())
             .into_iter()
             .enumerate()
             .for_each(|(i, record)| {
@@ -294,10 +291,10 @@ impl EigenWeightPerOrb {
             let spin_up_weight_total = Self::collect_weight_for_orbital(array_kpow, orbital_id, 1);
             let spin_down_weight_total =
                 Self::collect_weight_for_orbital(array_kpow, orbital_id, 2);
-            return Self::new(2 as u8, vec![spin_up_weight_total, spin_down_weight_total]);
+            Self::new(2_u8, vec![spin_up_weight_total, spin_down_weight_total])
         } else {
             let total = Self::collect_weight_for_orbital(array_kpow, orbital_id, 1);
-            return Self::new(1 as u8, vec![total]);
+            Self::new(1_u8, vec![total])
         }
     }
     /// Helper function to collect merged weights for selected orbital

@@ -45,11 +45,11 @@ fn test_total_dos() {
         .1
         .as_ref()
         .unwrap()
-        .into_iter()
+        .iter()
         .map(|x| -> f64 { x * -1.0 })
         .collect();
     let data: Vec<(f64, f64)> = e.clone().into_iter().zip(spin1).collect();
-    let down: Vec<(f64, f64)> = e.clone().into_iter().zip(spin2).collect();
+    let down: Vec<(f64, f64)> = e.into_iter().zip(spin2).collect();
     let up_dos_plot = plotlib::repr::Plot::new(data).line_style(LineStyle::new().colour("#DD3355"));
     let down_dos_plot =
         plotlib::repr::Plot::new(down).line_style(LineStyle::new().colour("#aaff55"));

@@ -343,7 +343,7 @@ impl KPointEigenValues {
 
     pub fn eigen_at_spin(&self, spin: u8) -> Option<&[f64]> {
         if spin == 1 {
-            Some(self.eigen_spin_1().as_ref())
+            Some(self.eigen_spin_1())
         } else if spin == 2 {
             self.eigen_spin_2()
         } else {

@@ -21,7 +21,7 @@ Compute the total Density of States (DOS).
 */
 pub fn total_dos(band_data: &Bands, energy_range: &Vec<f64>) -> (Vec<f64>, Option<Vec<f64>>) {
     if band_data.num_spins() == 1 {
-        (total_dos_spin(&band_data, energy_range, 1 as u8), None)
+        (total_dos_spin(band_data, energy_range, 1_u8), None)
     } else {
         assert_eq!(
             2,
@@ -30,8 +30,8 @@ pub fn total_dos(band_data: &Bands, energy_range: &Vec<f64>) -> (Vec<f64>, Optio
             band_data.num_spins()
         );
         (
-            total_dos_spin(&band_data, energy_range, 1),
-            Some(total_dos_spin(&band_data, energy_range, 2)),
+            total_dos_spin(band_data, energy_range, 1),
+            Some(total_dos_spin(band_data, energy_range, 2)),
         )
     }
 }
@@ -47,7 +47,7 @@ fn total_dos_spin(band_data: &Bands, energy_range: &Vec<f64>, spin: u8) -> Vec<f
         .map(|entry| -> Vec<f64> {
             let eigen_at_spin = entry
                 .eigen_at_spin(spin)
-                .expect(&format!("No eigenvalues at given spin {}", spin));
+                .unwrap_or_else(|| panic!("No eigenvalues at given spin {}", spin));
             shift_eigen_by_e_fermi(&eigen_at_spin.to_vec(), e_fermi)
         })
         .collect();
@@ -64,10 +64,7 @@ fn total_dos_spin(band_data: &Bands, energy_range: &Vec<f64>, spin: u8) -> Vec<f
                 generate delta energies with each value in the list,
                 weighted by their k-point weight
                 */
-                .map(|de| -> Vec<f64> {
-                    let this_de_contribution = e_delta(&energy_range, *de, k_point_weight_array[i]);
-                    this_de_contribution
-                })
+                .map(|de| -> Vec<f64> { e_delta(energy_range, *de, k_point_weight_array[i]) })
                 .collect::<Vec<Vec<f64>>>() // Collect to Vector of contribution
                 // Iterate over contributions
                 .iter()
