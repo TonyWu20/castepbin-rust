@@ -25,6 +25,9 @@ Project Started.
 1. Corrected used formula and smearing parameter for gaussian smearing. Consistent with CASTEP in MS.
 2. Optimized parsed data structures for `.pdos_weights`, for better data acquisition based on orbital.
 3. Figure out logic of `ionic_positions` and correct positions of optimized unit cell data in `.castep_bin`.
+### 2022-06-25
+1. Implement element-wise style addition for `Vec<f64>` for better readibility of codes about reducing vector of vectors
+2. First commit of `pdos_compute.rs`
 
 ## Notes
 I will share some essential information about the binary files from `CASTEP`.
