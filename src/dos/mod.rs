@@ -1,8 +1,9 @@
 extern crate itertools_num;
 extern crate plotlib;
 
-mod dos_compute;
-mod dos_util;
+pub mod dos_compute;
+pub mod dos_util;
+mod pdos_compute;
 mod pdos_util;
 
 #[derive(Debug)]
