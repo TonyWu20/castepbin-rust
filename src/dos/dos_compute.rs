@@ -7,7 +7,18 @@ use crate::{
 use super::DOS;
 
 use itertools_num::linspace;
-use std::f64::consts::{PI, SQRT_2};
+use nalgebra::{
+    Const, DMatrix, Dim, Dynamic, Matrix, Matrix1xX, Matrix2x1, MatrixXx1, MatrixXx2, SMatrix,
+    VecStorage, Vector2, U32,
+};
+use ndarray::{Array, Array1};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelIterator,
+};
+use std::{
+    f64::consts::{PI, SQRT_2},
+    ops::{Mul, Sub},
+};
 const SMEARING_WIDTH: f64 = 0.2;
 const HATREE_TO_EV: f64 = 27.211396641308;
 
@@ -50,6 +61,8 @@ fn total_dos_spin(band_data: &Bands, energy_range: &[f64], spin: u8) -> Vec<f64>
     let eigen_energies_vec = band_data.kpt_eigen_energies_array().eigen_energies();
     let e_fermi = band_data.e_fermi()[spin as usize - 1];
     // Shift each k-point's eigen energies by fermi energy
+    // Generates a 2-dimensional Vec<Vec<f64>>,
+    // eigen_energies_vec[nth_kpoint_data][nth_shifted_eigenvalues]
     let current_spin_shifted_eigens: Vec<Vec<f64>> = eigen_energies_vec
         .iter()
         .map(|entry| -> Vec<f64> {
@@ -61,24 +74,34 @@ fn total_dos_spin(band_data: &Bands, energy_range: &[f64], spin: u8) -> Vec<f64>
         .collect();
     let k_point_weight_array = band_data.kpt_eigen_energies_array().kpt_weight();
     current_spin_shifted_eigens
-        .iter()
+        .par_iter()
         // Pairs with k-point weights
-        .zip(k_point_weight_array.iter())
+        .zip(k_point_weight_array.par_iter())
         .map(|(de_list_per_k, kpt_weight)| -> Vec<f64> {
             // E_delta over given energy range
             // Total DOS so orbital_weights are `None`
             e_deltas_per_kpt(energy_range, de_list_per_k, *kpt_weight, None)
         })
-        // Fold vector of vectors into one vector
-        .reduce(|prev, next| -> Vec<f64> { prev.add(&next) })
+        /*
+        Fold vector of vectors into one vector
+        k1:   [e, ...]
+        k2:   [e, ...]
+        ...     ...
+        kx:   [e, ...]
+                ||
+                \/
+        Total: [e, ... ]
+        */
+        .reduce_with(|prev, next| -> Vec<f64> { prev.add(&next) })
         .unwrap()
 }
+
 /**
 Shift the eigenvalues by fermi energy and convert Hatree to eV
 */
 pub fn shift_eigen_by_e_fermi(eigen_energies_entry: &[f64], e_fermi: f64) -> Vec<f64> {
     eigen_energies_entry
-        .iter()
+        .par_iter()
         .map(|e| -> f64 { (e - e_fermi) * HATREE_TO_EV })
         .collect()
 }
@@ -108,6 +131,7 @@ fn gaussian_smearing(e: f64, de: f64) -> f64 {
     */
     (-((e - de) / (smear)).powi(2) / 2.0).exp() / ((2.0 * PI).sqrt() * smear)
 }
+
 /**
 Generate energies centered at the given k-point
 eigenvalue of energy, broadened by Gaussian smearing,
@@ -129,20 +153,20 @@ pub fn e_deltas_per_kpt(
     // orbital_weight_array has the same length as de_array
     match orbital_weight_array {
         Some(orbital_weights) => de_array
-            .iter()
-            .zip(orbital_weights.iter())
+            .par_iter()
+            .zip(orbital_weights.par_iter())
             .map(|(de, orb_weight)| e_delta(energies, *de, k_point_weight, *orb_weight))
             // Now we have n Vec<f64> of e_delta
-            .reduce(|prev, next| -> Vec<f64> {
+            .reduce_with(|prev, next| -> Vec<f64> {
                 // merge Vec<_> by zip and map
                 prev.add(&next)
             })
             .unwrap(),
         None => de_array
-            .iter()
+            .par_iter()
             .map(|de| e_delta(energies, *de, k_point_weight, 1.0))
             // Now we have n Vec<f64> of e_delta
-            .reduce(|prev, next| -> Vec<f64> {
+            .reduce_with(|prev, next| -> Vec<f64> {
                 // merge Vec<_> by zip and map
                 prev.add(&next)
             })

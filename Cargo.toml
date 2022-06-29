@@ -7,9 +7,13 @@ edition = "2021"
 
 [dependencies]
 nom = "*"
+ndarray = "0"
 nalgebra = "*"
 itertools-num = "0"
 plotlib = "0"
+toml = "0.5"
+rayon = "*"
+serde = {version="1.0", features=["derive"]}
 
 [dev-dependencies]
 criterion = "0.3"
