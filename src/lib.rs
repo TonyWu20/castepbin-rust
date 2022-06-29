@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments, dead_code, unused_imports)]
 use std::{fs, str::from_utf8};
 
-use na::{Matrix3, MatrixXx3, OMatrix, SMatrix, Vector3};
 use nom::{
     bytes::complete::take_until,
     multi::{count, many0, many1},
@@ -18,8 +17,9 @@ use crate::parser::{
         parse_u32_vec_from_record,
     },
 };
-
 extern crate nalgebra as na;
+
+pub mod config;
 pub mod dos;
 pub mod parser;
 pub mod test;
