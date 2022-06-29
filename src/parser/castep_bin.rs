@@ -5,7 +5,7 @@ use nom::{
     sequence::preceded,
     IResult,
 };
-use std::{fs, str::from_utf8};
+use std::{collections::HashMap, fs, str::from_utf8};
 
 use crate::{AMU, BOHR_RADIUS};
 
@@ -103,6 +103,40 @@ impl UnitCell {
             species_symbol,
         }
     }
+
+    pub fn species_symbol(&self) -> &[String] {
+        self.species_symbol.as_ref()
+    }
+
+    pub fn species_mass(&self) -> &[f64] {
+        self.species_mass.as_ref()
+    }
+
+    pub fn max_ions_in_species(&self) -> u32 {
+        self.max_ions_in_species
+    }
+
+    pub fn num_ions_in_species(&self) -> &[u32] {
+        self.num_ions_in_species.as_ref()
+    }
+
+    pub fn num_species(&self) -> u32 {
+        self.num_species
+    }
+
+    pub fn num_ions(&self) -> u32 {
+        self.num_ions
+    }
+    pub fn symbol_order_hashtable(&self) -> HashMap<&str, u8> {
+        let map: HashMap<&str, u8> = self
+            .species_symbol()
+            .iter()
+            .enumerate()
+            .map(|(idx, symbol)| (symbol.as_str(), (idx + 1) as u8))
+            .into_iter()
+            .collect();
+        map
+    }
 }
 
 pub struct CellGlobal {
@@ -124,7 +158,8 @@ pub trait FromCastepCheck {
 impl FromCastepCheck for UnitCell {
     type ParsedStruct = UnitCell;
     fn parser(data: &[u8]) -> IResult<&[u8], UnitCell> {
-        let (left, _) = parse_record(data)?; // Skip "BEGIN_UNIT_CELL"
+        let (cell_content, _) = skip_to_optimized_cell(data).unwrap();
+        let (left, _) = parse_record(cell_content)?; // Skip "BEGIN_UNIT_CELL"
         let (left, real_lat) = parse_data(left)?;
         let (left, recip_lat) = parse_data(left)?;
         let (left, cell_volume) = parse_data(left)?;
@@ -141,19 +176,24 @@ impl FromCastepCheck for UnitCell {
         let (left, species_mass) = parse_data(left)?;
         let (remains, species_symbol) = parse_data(left)?;
         let real_lat: Vec<f64> = parse_multi_f64(real_lat)
-            .unwrap()
+            .expect("Real lattice error")
             .1
             .iter()
             .map(|i| -> f64 { i / BOHR_RADIUS })
             .collect();
         let cell_real_lat: Matrix3<f64> = Matrix3::from_vec(real_lat);
-        let cell_volume =
-            parse_f64(cell_volume).unwrap().1 / BOHR_RADIUS / BOHR_RADIUS / BOHR_RADIUS;
+        let cell_volume = parse_f64(cell_volume).expect("Parse volume error").1
+            / BOHR_RADIUS
+            / BOHR_RADIUS
+            / BOHR_RADIUS;
         let num_species = parse_u32(num_species).unwrap().1;
         let num_ions = parse_u32(num_ions).unwrap().1;
         let max_ions_in_species = parse_u32(max_ions_in_species).unwrap().1;
-        let num_ions_in_species = parse_multi_u32(num_ions_in_species).unwrap().1;
-        let ionic_positions: Vec<f64> = parse_multi_f64(ionic_positions).unwrap().1;
+        let num_ions_in_species = parse_multi_u32(num_ions_in_species)
+            .expect("Num ions in species error")
+            .1;
+        let ionic_positions: Vec<f64> =
+            parse_multi_f64(ionic_positions).expect("Positions error").1;
         let ionic_positions: Vec<Vec<f64>> =
             ionic_positions.chunks(3).map(|xyz| xyz.to_vec()).collect();
         let ionic_positions: Vec<Vec<Vec<f64>>> = ionic_positions
@@ -162,13 +202,13 @@ impl FromCastepCheck for UnitCell {
             .collect();
         let ionic_charge_real = parse_f64(ionic_charge_real).unwrap().1;
         let species_mass = parse_multi_f64(species_mass)
-            .unwrap()
+            .expect("Mass error")
             .1
             .iter()
             .map(|i| -> f64 { i / AMU })
             .collect();
         let species_symbol: Vec<String> = from_utf8(species_symbol)
-            .unwrap()
+            .expect("Symbols error")
             .split_whitespace()
             .map(|str| -> String { str.to_string() })
             .collect();

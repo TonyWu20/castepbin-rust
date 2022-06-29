@@ -1,9 +1,11 @@
-use std::{collections::HashMap, vec};
+use std::{collections::HashMap, ops::Add, vec};
 
 use nom::{
     multi::{count, many_m_n},
     IResult,
 };
+
+use crate::util::ElementWiseAdd;
 
 use super::general::{
     parse_multi_f64, parse_multi_f64_from_record, parse_record, parse_u32, parse_u32_from_record,
@@ -54,29 +56,28 @@ impl PDOSWeight {
             orbital_eigen_weights,
         }
     }
-    pub fn search_species_rank_am(
-        species_id: u32,
-        rank_id: u32,
-        am_channel_id: u32,
-        search_hash: &HashMap<(u8, u8, u8), usize>,
-    ) -> Option<usize> {
-        let return_idx = search_hash.get(&(species_id as u8, rank_id as u8, am_channel_id as u8));
-        return_idx.copied()
-    }
-
-    fn hash_identity_arrays(&self) -> HashMap<(u8, u8, u8), usize> {
-        let mut hashtable = HashMap::new();
-        self.species_no()
+    pub fn filter_species_rank_am(
+        &self,
+        species_id: u8,
+        rank_id: u8,
+        am_channel_id: u8,
+    ) -> Option<Vec<usize>> {
+        let projections: Vec<usize> = self
+            .species_no()
             .iter()
             .zip(self.rank_in_species().iter())
             .zip(self.am_channel().iter())
-            .into_iter()
             .enumerate()
-            .for_each(|(i, record)| {
-                let ((spe, rank), am) = record;
-                hashtable.insert((*spe, *rank, *am), i);
-            });
-        hashtable
+            .filter(|(_, ((&s, &r), &am))| s == species_id && r == rank_id && am == am_channel_id)
+            .map(|(i, _)| i)
+            .collect();
+        match projections.is_empty() {
+            true => {
+                println!("Did not find projections!");
+                None
+            }
+            false => Some(projections),
+        }
     }
 
     pub fn parse(data: &[u8]) -> IResult<&[u8], Self> {
@@ -279,6 +280,35 @@ impl EigenWeightPerOrb {
             downspin_weight_matrix,
         }
     }
+    pub fn add_both_spins(&self, other: &Self) -> Self {
+        let merged_weight_matrix: Vec<UnitOrbitalWeight> = self
+            .upspin()
+            .iter()
+            .zip(other.upspin().iter())
+            .map(|(a, b)| a.add(b))
+            .collect();
+        let merged_down_matrix: Vec<UnitOrbitalWeight> = self
+            .downspin()
+            .unwrap()
+            .iter()
+            .zip(other.downspin().unwrap().iter())
+            .map(|(a, b)| a.add(b))
+            .collect();
+        Self::new(
+            self.num_spins(),
+            merged_weight_matrix,
+            Some(merged_down_matrix),
+        )
+    }
+    pub fn add(&self, other: &Self) -> Self {
+        let merged_weight_matrix: Vec<UnitOrbitalWeight> = self
+            .upspin()
+            .iter()
+            .zip(other.upspin().iter())
+            .map(|(a, b)| a.add(b))
+            .collect();
+        Self::new(self.num_spins(), merged_weight_matrix, None)
+    }
 
     pub fn num_spins(&self) -> u8 {
         self.num_spins
@@ -337,7 +367,7 @@ impl EigenWeightPerOrb {
 /**
 Unit struct for weights array of eigenvalue for each orbital
 */
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnitOrbitalWeight {
     weights_for_each_eigen: Vec<f64>,
 }
@@ -351,5 +381,8 @@ impl UnitOrbitalWeight {
 
     pub fn weights(&self) -> &[f64] {
         self.weights_for_each_eigen.as_ref()
+    }
+    pub fn add(&self, rhs: &Self) -> Self {
+        Self::new(self.weights().add(&rhs.weights()).to_vec())
     }
 }
