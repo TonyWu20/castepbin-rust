@@ -1,20 +1,8 @@
 /**
-Emulate vector-like element-wise addition for Vec<f64>
-# Arguments: (Vec<f64>, Vec<f64>)
-# Returns: Vec<f64>
+Implement traits to emulate vector-like element-wise addition for Vec<f64>
 */
 use std::ops::{Add, AddAssign};
 use std::vec;
-pub fn vec_f64_add(vec_a: &[f64], vec_b: &[f64]) -> Vec<f64> {
-    if vec_b.is_empty() {
-        return vec_a.to_vec();
-    }
-    vec_a
-        .iter()
-        .zip(vec_b.iter())
-        .map(|(&a, &b)| a + b)
-        .collect()
-}
 
 pub trait ElementWiseAdd<T, Rhs = Self> {
     type Output;
@@ -32,6 +20,20 @@ where
 {
     type Output = Self;
     fn add(&self, other: &Self) -> Self::Output {
+        self.iter()
+            .zip(other.iter())
+            .map(|(a, b)| *a + *b)
+            .collect()
+    }
+}
+
+impl<T> ElementWiseAdd<T> for &[T]
+where
+    T: Copy + Add,
+    Vec<T>: FromIterator<<T as Add>::Output>,
+{
+    type Output = Vec<T>;
+    fn add(&self, other: &Self) -> Vec<T> {
         self.iter()
             .zip(other.iter())
             .map(|(a, b)| *a + *b)

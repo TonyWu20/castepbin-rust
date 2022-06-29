@@ -10,7 +10,7 @@ use crate::{
         pdos_weights::PDOSWeight,
         END_CELL_GLOBAL,
     },
-    Matrix3, MatrixXx3, AMU, BOHR_RADIUS,
+    AMU, BOHR_RADIUS,
 };
 
 #[cfg(test)]
@@ -22,26 +22,13 @@ fn test_unit_cell() {
     let (cell_content, _) = skip_to_optimized_cell(&file).unwrap();
     let (_, _cell) = UnitCell::parser(cell_content).unwrap();
 }
-#[cfg(test)]
-#[test]
-fn test_pdos_weights_struct() {
-    let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
-        .expect("Error opening pdos_weights");
-    // let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights")
-    // .expect("Error opening pdos_weights");
-    let (_, pdos_weight) = PDOSWeight::parse(&file).unwrap();
-    println!("{}", pdos_weight.orbital_eigen_weights().len());
-    println!("{:#?}", pdos_weight.eigen_weights_at_orbital(3).upspin())
-    // let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
-    //     .expect("Error opening pdos_weights");
-    // let (_, pdos_weight) = PDOSWeight::parse(&file).expect("Error Pt");
-    // println!("Pt_310");
-    // println!("{:#?}", pdos_weight);
-}
+
 #[ignore]
 #[cfg(test)]
 #[test]
 fn test_new_parser() {
+    use nalgebra::{Matrix3, MatrixXx3};
+
     let file = fs::read("./Si2.castep_bin").unwrap();
     let (_, parse_result) = crate::castep_bin::parse_castep_bin(&file).unwrap();
     parse_result.iter().enumerate().for_each(|(i, entry)| {
