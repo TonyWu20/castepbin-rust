@@ -1,10 +1,13 @@
+use crate::util::ElementWiseAdd;
 use std::fs;
 
+use ndarray::prelude::*;
+use ndarray::{ArrayBase, ArrayViewD, Dim, ShapeBuilder, ViewRepr};
 use nom::{error::Error, IResult};
 
 use crate::parser::{
     castep_bin::{FromCastepCheck, UnitCell},
-    pdos_weights::{EigenWeightPerOrb, PDOSWeight, UnitOrbitalWeight},
+    pdos_weights::PDOSWeight,
 };
 
 // pub fn projected_weights(
@@ -52,53 +55,54 @@ fn read_pdos_weights(pdos_weights_file: &str) -> PDOSWeight {
 /**
 Get the eigenweight at given `orbital_id` (0-indexed) and spin
 */
-pub fn get_orbital_eigenweights(
-    weights: &PDOSWeight,
-    orbital_id: u32,
-    spin: u32,
-) -> &[UnitOrbitalWeight] {
-    let eigen_weights = weights.eigen_weights_at_orbital(orbital_id);
-    match spin {
-        1 => eigen_weights.upspin(),
-        2 => eigen_weights.downspin().unwrap().as_ref(),
-        _ => panic!("Wrong spin number :{spin}"),
-    }
-}
-fn merge_pdos_weights(projections: &Vec<&[UnitOrbitalWeight]>) -> Vec<UnitOrbitalWeight> {
-    let merged_weights: Vec<UnitOrbitalWeight> = projections
-        .into_iter()
-        .map(|entry| entry.to_vec())
-        .reduce(
-            |orb_prev: Vec<UnitOrbitalWeight>,
-             orb_next: Vec<UnitOrbitalWeight>|
-             -> Vec<UnitOrbitalWeight> {
-                orb_prev
-                    .into_iter()
-                    .zip(orb_next.into_iter())
-                    .map(|(vp, vn)| vp.add(&vn))
-                    .collect()
-            },
-        )
-        .unwrap();
-    merged_weights
-}
+// pub fn get_orbital_eigenweights(
+//     weights: &PDOSWeight,
+//     orbital_id: u32,
+//     spin: u32,
+// ) -> ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>> {
+//     let eigen_weights: &EigenWeightPerOrb = weights.eigen_weights_at_orbital(orbital_id);
+//     match spin {
+//         1 => eigen_weights.weight_matrices().slice(s![0, .., ..]),
+//         2 => eigen_weights.weight_matrices().slice(s![1, .., ..]),
+//         _ => panic!("Wrong spin number :{spin}"),
+//     }
+// }
+// fn merge_pdos_weights(projections: &Vec<&[UnitOrbitalWeight]>) -> Vec<UnitOrbitalWeight> {
+//     let merged_weights: Vec<UnitOrbitalWeight> = projections
+//         .into_iter()
+//         .map(|entry| entry.to_vec())
+//         .reduce(
+//             |orb_prev: Vec<UnitOrbitalWeight>,
+//              orb_next: Vec<UnitOrbitalWeight>|
+//              -> Vec<UnitOrbitalWeight> {
+//                 orb_prev
+//                     .into_iter()
+//                     .zip(orb_next.into_iter())
+//                     .map(|(vp, vn)| vp.add(&vn))
+//                     .collect()
+//             },
+//         )
+//         .unwrap();
+//     merged_weights
+// }
 
 #[cfg(test)]
 mod test {
     use std::{fs, ops::Add};
 
-    use crate::{
-        parser::pdos_weights::{PDOSWeight, UnitOrbitalWeight},
-        util::ElementWiseAdd,
-    };
+    use ndarray::{Array, Array1, Array2, Axis};
+    use ndarray::{Order, ShapeBuilder};
 
-    use super::{get_orbital_eigenweights, read_pdos_weights};
-    #[ignore]
+    use crate::{parser::pdos_weights::PDOSWeight, util::ElementWiseAdd};
+
+    use super::read_pdos_weights;
+    // #[ignore]
     #[test]
     fn test_pdos_weights_struct() {
         let file = fs::read("./Pt_310_12lyr_v20_CO_DOS/Pt_310_12lyr_v20_CO_DOS.pdos_weights")
             .expect("Error opening pdos_weights");
-        let (_, pdos_weight) = PDOSWeight::parse(&file).expect("Error Pt");
+        // let file = fs::read("./Si_2_custom CASTEP GeomOpt/Si_2_custom.pdos_weights")
+        // .expec;warnt("Error opening pdos_weights");
         // println!("Pt_310");
         // println!("{:#?}", pdos_weight);
         // let file = fs::read("./Au_310/Au_310_12lyr_v20_CHO.pdos_weights")
@@ -118,28 +122,26 @@ mod test {
             .map(|(i, _)| i)
             .collect();
         println!("orbitals: {:?}", orbitals_id);
-        let projections: Vec<Vec<UnitOrbitalWeight>> = orbitals_id
-            .iter()
-            .map(|i| get_orbital_eigenweights(&pdos_weight, *i as u32, 1).to_vec())
-            .collect();
-        let merged_weights: Vec<UnitOrbitalWeight> = projections
-            .into_iter()
-            .reduce(|orb_prev, orb_next| -> Vec<UnitOrbitalWeight> {
-                orb_prev
-                    .into_iter()
-                    .zip(orb_next.into_iter())
-                    .map(|(vp, vn)| vp.add(&vn))
-                    .collect()
-            })
-            .unwrap();
-        merged_weights
-            .iter()
-            .for_each(|i| println!("{:?}", i.weights()));
+        let projections = pdos_weight
+            .orbital_at_eigen_weights()
+            .select(Axis(3), &[0])
+            .select(Axis(0), &orbitals_id);
+        let merged_weights = projections.sum_axis(Axis(0));
+        // let mut kpt_weights: Array<f64, _> = Array::zeros((4, 1));
+        // kpt_weights.fill(0.25);
         println!(
-            "{}, {}, {}",
+            "{}, {}",
             pdos_weight.num_kpoints(),
             pdos_weight.num_eigenvalues(),
-            merged_weights.len()
         );
+        // println!("{:#.2?}", pdos_weight.orbital_at_eigen_weights());
+        println!(
+            "{:#.2?}, {}, {:?}",
+            merged_weights,
+            merged_weights.is_standard_layout(),
+            merged_weights.dim()
+        );
+        // println!("{:#?}, {}", kpt_weights, kpt_weights.is_standard_layout());
+        // println!("{:#?}", merged_weights.dot(&kpt_weights));
     }
 }

@@ -1,5 +1,6 @@
 use std::fs;
 
+use ndarray::{Array3, ShapeBuilder};
 use nom::{
     bytes::complete::tag,
     character::complete::{multispace0, multispace1},
@@ -55,8 +56,12 @@ impl Bands {
         let (i, num_eigenvalues) = Self::parse_eigen_values(i, num_spins)?;
         let (i, e_fermi) = Self::parse_efermi(i, num_spins)?;
         let (i, cell_vectors) = Self::parse_unit_cell_vectors(i)?;
-        let (i, kpt_eigen_energies) = many0(KPointEnergies::parse)(i)?;
-        let kpt_eigen_energies_array = KPointEnergiesVec::from_array_of_struct(&kpt_eigen_energies);
+        let (i, kpt_eigen_energies): (&str, Vec<KPointEnergies>) = many0(KPointEnergies::parse)(i)?;
+        let kpt_eigen_energies_array = KPointEnergiesVec::from_array_of_struct(
+            &kpt_eigen_energies,
+            num_spins,
+            num_eigenvalues[0],
+        );
         Ok((
             i,
             Self::new(
@@ -156,8 +161,8 @@ pub struct KPointEnergies {
     ///! ID in .bands file
     kpt_coordinate: [f64; 3],
     kpt_weight: f64,
-    ///! One or two subvectors depending on spin-polarised or not
-    eigen_energies: KPointEigenValues,
+    ///! Always flattened, regardless of existence of spin-component 2
+    eigen_energies: Vec<Vec<f64>>,
 }
 
 impl KPointEnergies {
@@ -165,7 +170,8 @@ impl KPointEnergies {
         nth_kpts: u8,
         kpt_coordinate: [f64; 3],
         kpt_weight: f64,
-        eigen_energies: KPointEigenValues,
+        // Always flattened, regardless of existence of spin-component 2
+        eigen_energies: Vec<Vec<f64>>,
     ) -> Self {
         Self {
             nth_kpts,
@@ -176,23 +182,8 @@ impl KPointEnergies {
     }
     pub fn parse(data: &str) -> IResult<&str, Self> {
         let (i, (nth_kpt, coordinates, weight)) = Self::parse_kpoint_entry(data)?;
-        let (i, eigen_energies) = many1(Self::parse_eigen_values)(i)?;
-        if eigen_energies.len() == 2 {
-            let kpt_eigen_val_data = KPointEigenValues::new(
-                eigen_energies[0].to_vec(),
-                Some(eigen_energies[1].to_vec()),
-            );
-            Ok((
-                i,
-                Self::new(nth_kpt, coordinates, weight, kpt_eigen_val_data),
-            ))
-        } else {
-            let kpt_eigen_val_data = KPointEigenValues::new(eigen_energies[0].to_vec(), None);
-            Ok((
-                i,
-                Self::new(nth_kpt, coordinates, weight, kpt_eigen_val_data),
-            ))
-        }
+        let (i, eigen_energies): (&str, Vec<Vec<f64>>) = many1(Self::parse_eigen_values)(i)?;
+        Ok((i, Self::new(nth_kpt, coordinates, weight, eigen_energies)))
     }
     fn parse_kpoint_entry(data: &str) -> IResult<&str, (u8, [f64; 3], f64)> {
         let (i, res) = tuple((
@@ -221,14 +212,19 @@ impl KPointEnergies {
         self.kpt_weight
     }
 
-    fn eigen_energies(&self) -> &KPointEigenValues {
-        &self.eigen_energies
+    pub fn eigen_energies(&self) -> &[Vec<f64>] {
+        self.eigen_energies.as_ref()
     }
 }
 
 /**
 Struct of Array representing the k-point-eigen-energies data
 in <seed>.bands
+# Fields:
+    * nth_kpts - Vector of k-point number
+    * kpt_coordinate - `KPointCoordVec`
+    * kpt_weight - Vector of k-point weight
+    * eigen_energies - 3-dimensional ndarray, spin-kpt-eigenvalues
 */
 #[derive(Debug)]
 pub struct KPointEnergiesVec {
@@ -237,7 +233,7 @@ pub struct KPointEnergiesVec {
     kpt_coordinate: KPointCoordVec,
     kpt_weight: Vec<f64>,
     ///! Length equal to nth_kpts.len()
-    eigen_energies: Vec<KPointEigenValues>,
+    eigen_energies: Array3<f64>,
 }
 
 impl KPointEnergiesVec {
@@ -245,7 +241,7 @@ impl KPointEnergiesVec {
         nth_kpts: Vec<u8>,
         kpt_coordinate: KPointCoordVec,
         kpt_weight: Vec<f64>,
-        eigen_energies: Vec<KPointEigenValues>,
+        eigen_energies: Array3<f64>,
     ) -> Self {
         Self {
             nth_kpts,
@@ -254,11 +250,35 @@ impl KPointEnergiesVec {
             eigen_energies,
         }
     }
-    pub fn from_array_of_struct(kpe_array: &[KPointEnergies]) -> Self {
+    pub fn from_array_of_struct(
+        kpe_array: &[KPointEnergies],
+        num_spin: u8,
+        num_eigens: u32,
+    ) -> Self {
         let mut nth_kpts_array: Vec<u8> = vec![];
         let (mut kpt_x, mut kpt_y, mut kpt_z) = (vec![], vec![], vec![]);
         let mut kpt_weight_array: Vec<f64> = vec![];
-        let mut eigen_energies_array: Vec<KPointEigenValues> = vec![];
+        let num_kpt = kpe_array.len();
+        let spin_eigen_energies: Vec<Vec<Vec<f64>>> = (0..num_spin as usize)
+            .into_iter()
+            .map(|spin| {
+                kpe_array
+                    .iter()
+                    .map(|kpe| -> Vec<f64> { kpe.eigen_energies()[spin].to_vec() })
+                    .collect::<Vec<Vec<f64>>>()
+            })
+            .collect();
+        let flatten_eigen_energies: Vec<f64> = spin_eigen_energies
+            .into_iter()
+            .flatten()
+            .flatten()
+            .collect();
+        // We take column major order here
+        let eigen_energies_array = Array3::from_shape_vec(
+            (num_eigens as usize, num_kpt as usize, num_spin as usize).f(),
+            flatten_eigen_energies,
+        )
+        .unwrap();
         kpe_array.iter().for_each(|item| {
             nth_kpts_array.push(item.nth_kpts());
             let cd = item.kpt_coordinate();
@@ -266,7 +286,6 @@ impl KPointEnergiesVec {
             kpt_y.push(cd[1]);
             kpt_z.push(cd[2]);
             kpt_weight_array.push(item.kpt_weight());
-            eigen_energies_array.push(item.eigen_energies().to_owned());
         });
         Self::new(
             nth_kpts_array,
@@ -296,8 +315,8 @@ impl KPointEnergiesVec {
         &self.kpt_coordinate
     }
 
-    pub fn eigen_energies(&self) -> &[KPointEigenValues] {
-        self.eigen_energies.as_ref()
+    pub fn eigen_energies(&self) -> &Array3<f64> {
+        &self.eigen_energies
     }
 }
 
@@ -329,37 +348,11 @@ impl KPointCoordVec {
 /** k-point eigenvalue representation in <seed>.bands */
 #[derive(Debug, Clone)]
 pub struct KPointEigenValues {
-    eigen_spin_1: Vec<f64>,
-    eigen_spin_2: Option<Vec<f64>>,
+    eigens: Vec<f64>,
 }
 
 impl KPointEigenValues {
-    pub fn new(eigen_spin_1: Vec<f64>, eigen_spin_2: Option<Vec<f64>>) -> Self {
-        Self {
-            eigen_spin_1,
-            eigen_spin_2,
-        }
-    }
-
-    pub fn eigen_at_spin(&self, spin: u8) -> Option<&[f64]> {
-        if spin == 1 {
-            Some(self.eigen_spin_1())
-        } else if spin == 2 {
-            self.eigen_spin_2()
-        } else {
-            None
-        }
-    }
-
-    pub fn eigen_spin_1(&self) -> &[f64] {
-        self.eigen_spin_1.as_ref()
-    }
-
-    pub fn eigen_spin_2(&self) -> Option<&[f64]> {
-        if let Some(spin2) = &self.eigen_spin_2 {
-            Some(spin2.as_ref())
-        } else {
-            None
-        }
+    pub fn new(eigens: Vec<f64>) -> Self {
+        Self { eigens }
     }
 }

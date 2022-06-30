@@ -1,12 +1,6 @@
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-use crate::{
-    parser::{
-        bands::Bands,
-        pdos_weights::{EigenWeightPerOrb, UnitOrbitalWeight},
-    },
-    util::ElementWiseAdd,
-};
+use crate::{parser::bands::Bands, util::ElementWiseAdd};
 
 use super::dos_compute::{e_deltas_per_kpt, shift_eigen_by_e_fermi};
 

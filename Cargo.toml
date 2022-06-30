@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 nom = "*"
-ndarray = "0"
+ndarray = {version="0", features = ["rayon"]}
 nalgebra = "*"
 itertools-num = "0"
 plotlib = "0"

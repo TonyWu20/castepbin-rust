@@ -6,7 +6,7 @@ use std::vec;
 
 pub trait ElementWiseAdd<T, Rhs = Self> {
     type Output;
-    fn add(&self, rhs: &Rhs) -> Self::Output;
+    fn add(self, rhs: &Rhs) -> Self::Output;
 }
 
 pub trait ElementWiseAddAssign<T, Rhs = Self> {
@@ -19,7 +19,7 @@ where
     Vec<T>: FromIterator<<T as Add>::Output>,
 {
     type Output = Self;
-    fn add(&self, other: &Self) -> Self::Output {
+    fn add(self, other: &Self) -> Self::Output {
         self.iter()
             .zip(other.iter())
             .map(|(a, b)| *a + *b)
@@ -33,7 +33,7 @@ where
     Vec<T>: FromIterator<<T as Add>::Output>,
 {
     type Output = Vec<T>;
-    fn add(&self, other: &Self) -> Vec<T> {
+    fn add(self, other: &Self) -> Vec<T> {
         self.iter()
             .zip(other.iter())
             .map(|(a, b)| *a + *b)
@@ -60,6 +60,6 @@ fn test_element_wise_add() {
     println!("{:?}, {:?}", vec_1, vec_2);
     vec_1.add_assign(&vec_2);
     println!("{:?}, {:?}", vec_1, vec_2);
-    let vec_3 = vec_1.add(&vec_2);
+    let vec_3 = vec_1.clone().add(&vec_2);
     println!("{:?}, {:?}, {:?}", vec_1, vec_2, vec_3);
 }
