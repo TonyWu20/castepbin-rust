@@ -4,23 +4,22 @@ use crate::{
     util::ElementWiseAdd,
 };
 
-use super::DOS;
-
 use itertools_num::linspace;
 use nalgebra::{
     Const, DMatrix, Dim, Dynamic, Matrix, Matrix1xX, Matrix2x1, MatrixXx1, MatrixXx2, SMatrix,
     VecStorage, Vector2, U32,
 };
-use ndarray::{Array, Array1, Array2, Axis, ShapeBuilder};
+use ndarray::{Array, Array1, Array2, Axis, ShapeBuilder, Zip};
 use rayon::iter::{
-    IndexedParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelIterator,
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelBridge,
+    ParallelIterator,
 };
 use std::{
     f64::consts::{PI, SQRT_2},
     ops::{Mul, Sub},
 };
 const SMEARING_WIDTH: f64 = 0.2;
-const HATREE_TO_EV: f64 = 27.211396641308;
+pub const HATREE_TO_EV: f64 = 27.211396641308;
 
 /**
 Compute the total Density of States (DOS).
@@ -33,22 +32,31 @@ Compute the total Density of States (DOS).
 # Notes:
   * The function will panic if `num_spins` are larger than 2 -- which usually would not happen.
 */
-// pub fn total_dos(band_data: &Bands, energy_range: &[f64]) -> (Vec<f64>, Option<Vec<f64>>) {
-//     if band_data.num_spins() == 1 {
-//         (total_dos_spin(band_data, energy_range, 1_u8), None)
-//     } else {
-//         assert_eq!(
-//             2,
-//             band_data.num_spins(),
-//             "Spin cannot be > 2! Current value: {}",
-//             band_data.num_spins()
-//         );
-//         (
-//             total_dos_spin(band_data, energy_range, 1),
-//             Some(total_dos_spin(band_data, energy_range, 2)),
-//         )
-//     }
-// }
+pub fn total_dos(band_data: &Bands, energy_range: &[f64]) -> Vec<Vec<f64>> {
+    // if band_data.num_spins() == 1 {
+    //     total_dos_spin(band_data, energy_range, 0_u8)
+    // } else {
+    //     assert_eq!(
+    //         2,
+    //         band_data.num_spins(),
+    //         "Spin cannot be > 2! Current value: {}",
+    //         band_data.num_spins()
+    //     );
+    //     (
+    //         total_dos_spin(band_data, energy_range, 0),
+    //         Some(total_dos_spin(band_data, energy_range, 1)),
+    //     )
+    // }
+    let num_spin = band_data.num_spins();
+    let num_kpt = band_data.num_kpts();
+    let num_eigen = band_data.num_eigenvalues()[0];
+    let orbital_weight_array = Array2::ones((num_eigen as usize, num_kpt as usize));
+    let results: Vec<Vec<f64>> = (0..num_spin as usize)
+        .into_par_iter()
+        .map(|spin| dos_spin(band_data, energy_range, spin as u8, &orbital_weight_array))
+        .collect();
+    results
+}
 
 /**
 Helper function to compute the total Density of States (DOS) at given spin.
@@ -95,45 +103,74 @@ Helper function to compute the total Density of States (DOS) at given spin.
 //         .unwrap()
 // }
 
-fn dos_spin(
+/**
+Main routine of calculating DOS
+# Arguments:
+    * band_data - `&Bands` struct carrying data in <seed>.bands
+    * energy_range - x-axis energy range
+    * spin - spin portion, 0 or 1
+    * orbital_weight_array - 2D Array, shape = (num_eigenvalues, num_kpts)
+*/
+pub fn dos_spin(
     band_data: &Bands,
     energy_range: &[f64],
     spin: u8,
-    orbital_weight_array: &[f64],
+    orbital_weight_array: &Array2<f64>,
 ) -> Vec<f64> {
-    let eigen_values_at_spin = band_data
+    let num_eigens = band_data.num_eigenvalues()[0] as usize;
+    let num_kpts = band_data.num_kpts() as usize;
+    let eigen_values_at_spin: Array2<f64> = band_data
         .kpt_eigen_energies_array()
         .eigen_energies()
-        .select(Axis(0), &[spin as usize]);
-    let e_fermi = band_data.e_fermi()[0];
-    let num_eigens = band_data.num_eigenvalues()[0] as usize;
-    let shifted_eigens = (eigen_values_at_spin - e_fermi) * HATREE_TO_EV;
-    let shifted_eigens = shifted_eigens
-        .to_shape((band_data.num_eigenvalues()[0] as usize, 1 as usize))
+        .select(Axis(2), &[spin as usize])
+        .into_shape((num_eigens, num_kpts))
         .unwrap();
-    let energy_range = Array2::from_shape_vec(
-        (400, num_eigens).f(),
-        (0..num_eigens)
-            .into_iter()
-            .map(|_| linspace(-20.0, 20.0, 400).into_iter().collect::<Vec<f64>>())
-            .collect::<Vec<Vec<f64>>>()
-            .into_iter()
-            .flatten()
-            .collect::<Vec<f64>>(),
-    )
-    .unwrap();
-    let mut shifted_eigens_mat: Array2<f64> = Array2::zeros((400, num_eigens));
-    shifted_eigens_mat
-        .axis_iter_mut(Axis(1))
-        .zip(shifted_eigens.axis_iter(Axis(0)))
-        .for_each(|(mut lcol, rcol)| lcol.fill(rcol[0]));
-    println!("{:#.2?}", energy_range);
-    println!("{:#.2?}", shifted_eigens_mat);
-    let mut energy_matrix = energy_range - shifted_eigens_mat;
-    energy_matrix.par_mapv_inplace(|de| gaussian_smearing_delta(de));
-    let result = energy_matrix.sum_axis(Axis(1));
-    println!("{:#.2?}", result);
-    todo!()
+    let e_fermi = band_data.e_fermi()[spin as usize];
+    let shifted_eigens: Array2<f64> = (eigen_values_at_spin - e_fermi) * HATREE_TO_EV;
+    let num_points = energy_range.len();
+    let kpt_weights = band_data.kpt_eigen_energies_array().kpt_weight();
+    // let results = Zip::from(shifted_eigens.columns())
+    //     .and(orbital_weight_array.columns())
+    //     .and(kpt_weights)
+    //     .par_map_collect(|col, orb_weight, kpt_weight| {
+    //         let e_range: Array2<f64> =
+    //             Array2::from_shape_vec((num_points, 1).f(), energy_range.to_vec()).unwrap();
+    //         let e_width: Array2<f64> = Array2::ones((1, num_eigens));
+    //         let energy_mat = e_range.dot(&e_width);
+    //         let col_t = col.into_shape((1, num_eigens)).unwrap();
+    //         let col_height: Array2<f64> = Array2::ones((num_points, 1).f());
+    //         let eigen_mat = col_height.dot(&col_t);
+    //         let mut de_mat = energy_mat - eigen_mat;
+    //         de_mat.par_mapv_inplace(|de| gaussian_smearing_delta(de));
+    //         let orb_weight = orb_weight.to_shape((num_eigens, 1)).unwrap();
+    //         de_mat.dot(&orb_weight) * *kpt_weight
+    //     });
+    // let spin_dos = results.into_iter().reduce(|a, b| a + b).unwrap();
+    let spin_dos = shifted_eigens
+        .axis_iter(Axis(1))
+        .into_par_iter()
+        .zip(orbital_weight_array.axis_iter(Axis(1)).into_par_iter())
+        .zip(kpt_weights.into_par_iter())
+        .map(|((col, orb_weight), kpt_weight)| {
+            let e_range: Array2<f64> =
+                Array2::from_shape_vec((num_points, 1).f(), energy_range.to_vec()).unwrap();
+            let e_width: Array2<f64> = Array2::ones((1, num_eigens));
+            let energy_mat = e_range.dot(&e_width);
+            let col_t = col.into_shape((1, num_eigens)).unwrap();
+            let col_height: Array2<f64> = Array2::ones((num_points, 1).f());
+            let eigen_mat = col_height.dot(&col_t);
+            let mut de_mat = energy_mat - eigen_mat;
+            de_mat.par_mapv_inplace(|de| gaussian_smearing_delta(de));
+            let orb_weight = orb_weight.to_shape((num_eigens, 1)).unwrap();
+            de_mat.dot(&orb_weight) * *kpt_weight
+        })
+        .reduce_with(|prev, next| prev + next)
+        .unwrap();
+    spin_dos
+        .to_shape(num_points)
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<f64>>()
 }
 
 /**
@@ -251,7 +288,6 @@ fn test_band() {
     let species = pdos_weight.species_no();
     let ranks = pdos_weight.rank_in_species();
     let am_channels = pdos_weight.am_channel();
-
     let orbitals_id: Vec<usize> = species
         .iter()
         .zip(ranks.iter())
