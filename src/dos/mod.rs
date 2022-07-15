@@ -1,5 +1,4 @@
 extern crate itertools_num;
-extern crate plotlib;
 
 pub mod dos_compute;
 pub mod dos_util;
