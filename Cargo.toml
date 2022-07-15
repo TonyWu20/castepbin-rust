@@ -7,16 +7,18 @@ edition = "2021"
 
 [dependencies]
 nom = "*"
-ndarray = {version="0", features = ["rayon"]}
+ndarray = {version="0", features = ["rayon", "blas"]}
+ndarray-stats = "0"
+blas-src = { version = "0.8", default-feature = false, features = ["accelerate"] }
 nalgebra = "*"
 itertools-num = "0"
-plotlib = "0"
+plotters = "0.3"
 toml = "0.5"
 rayon = "*"
 serde = {version="1.0", features=["derive"]}
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = {version="0.3", features=["html_reports"]}
 
 [[bench]]
 name = "my_benchmark"
