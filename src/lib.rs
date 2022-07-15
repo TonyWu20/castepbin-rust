@@ -17,6 +17,7 @@ use crate::parser::{
         parse_u32_vec_from_record,
     },
 };
+extern crate blas_src;
 extern crate nalgebra as na;
 
 pub mod config;
