@@ -1,6 +1,7 @@
 use std::fs;
 
 use ndarray::{Array3, ShapeBuilder};
+use ndarray_stats::QuantileExt;
 use nom::{
     bytes::complete::tag,
     character::complete::{multispace0, multispace1},
@@ -9,6 +10,7 @@ use nom::{
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use super::general::{decimal, decimal_u8, float};
 
@@ -27,6 +29,8 @@ pub struct Bands {
     unit_cell_vectors: Vec<f64>,
     ///! Length = num_kpts
     kpt_eigen_energies_array: KPointEnergiesVec,
+    min_eigen_energy: f64,
+    max_eigen_energy: f64,
 }
 
 impl Bands {
@@ -38,6 +42,8 @@ impl Bands {
         e_fermi: Vec<f64>,
         unit_cell_vectors: Vec<f64>,
         kpt_eigen_energies_array: KPointEnergiesVec,
+        min_eigen_energy: f64,
+        max_eigen_energy: f64,
     ) -> Self {
         Self {
             num_kpts,
@@ -47,6 +53,8 @@ impl Bands {
             e_fermi,
             unit_cell_vectors,
             kpt_eigen_energies_array,
+            min_eigen_energy,
+            max_eigen_energy,
         }
     }
     pub fn parse(data: &str) -> IResult<&str, Self> {
@@ -62,6 +70,8 @@ impl Bands {
             num_spins,
             num_eigenvalues[0],
         );
+        let (min, max) = kpt_eigen_energies_array.min_max_eigen_energies();
+
         Ok((
             i,
             Self::new(
@@ -72,6 +82,8 @@ impl Bands {
                 e_fermi,
                 cell_vectors,
                 kpt_eigen_energies_array,
+                min,
+                max,
             ),
         ))
     }
@@ -148,6 +160,14 @@ impl Bands {
 
     pub fn kpt_eigen_energies_array(&self) -> &KPointEnergiesVec {
         &self.kpt_eigen_energies_array
+    }
+
+    pub fn min_eigen_energy(&self) -> f64 {
+        self.min_eigen_energy
+    }
+
+    pub fn max_eigen_energy(&self) -> f64 {
+        self.max_eigen_energy
     }
 }
 
@@ -260,10 +280,10 @@ impl KPointEnergiesVec {
         let mut kpt_weight_array: Vec<f64> = vec![];
         let num_kpt = kpe_array.len();
         let spin_eigen_energies: Vec<Vec<Vec<f64>>> = (0..num_spin as usize)
-            .into_iter()
+            .into_par_iter()
             .map(|spin| {
                 kpe_array
-                    .iter()
+                    .par_iter()
                     .map(|kpe| -> Vec<f64> { kpe.eigen_energies()[spin].to_vec() })
                     .collect::<Vec<Vec<f64>>>()
             })
@@ -317,6 +337,12 @@ impl KPointEnergiesVec {
 
     pub fn eigen_energies(&self) -> &Array3<f64> {
         &self.eigen_energies
+    }
+    pub fn min_max_eigen_energies(&self) -> (f64, f64) {
+        let eigen_energies = self.eigen_energies();
+        let min = eigen_energies.min().unwrap();
+        let max = eigen_energies.max().unwrap();
+        (*min, *max)
     }
 }
 
