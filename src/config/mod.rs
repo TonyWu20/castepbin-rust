@@ -16,9 +16,15 @@ Config file struct for deserialization
     * tasks: Task - Struct of Task
 */
 #[derive(Deserialize, Debug)]
-struct Config {
+pub struct Config {
     title: String,
     tasks: Task,
+}
+
+impl Config {
+    pub fn tasks(&self) -> &Task {
+        &self.tasks
+    }
 }
 /**
 Task of run.
@@ -26,8 +32,21 @@ Task of run.
     * pdos: Option<PDOSConfig> - Optional field to store config of PDOS calculation
 */
 #[derive(Deserialize, Debug)]
-struct Task {
+pub struct Task {
     pdos: Option<PDOSTask>,
+}
+
+impl Task {
+    pub fn pdos(&self) -> Option<&PDOSTask> {
+        self.pdos.as_ref()
+    }
+}
+pub trait TaskProcess {
+    type Output;
+    type Target;
+    type Reference;
+    fn compute_target(&self, target: &Self::Target, reference: &Self::Reference) -> Self::Output;
+    fn task_execute(&self) -> Vec<Self::Output>;
 }
 
 #[cfg(test)]
@@ -57,7 +76,5 @@ am_channel = ["s", "p"]
     )
     .unwrap();
     println!("{:?}", config);
-    let cell_file = fs::read(&config.tasks.pdos.as_ref().unwrap().castep_bin_filename()).unwrap();
-    let cell = UnitCell::parser(&cell_file).unwrap().1;
     println!("{:?}", config.tasks)
 }

@@ -3,7 +3,10 @@ use std::fs;
 /// Struct for pdos config in .toml
 use serde::Deserialize;
 
-use crate::parser::castep_bin::{FromCastepCheck, UnitCell};
+use crate::parser::{
+    castep_bin::{FromCastepCheck, UnitCell},
+    pdos_weights::PDOSWeight,
+};
 /**
 Configs of a PDOS calculation task.
 # Field:
@@ -17,7 +20,7 @@ pub struct PDOSTask {
     seed: String,
     spin: bool,
     smearing_width: f64,
-    targets: Vec<Targets>,
+    targets: Vec<PDOSTargets>,
 }
 
 impl PDOSTask {
@@ -50,7 +53,7 @@ impl PDOSTask {
         self.smearing_width
     }
 
-    pub fn targets(&self) -> &[Targets] {
+    pub fn targets(&self) -> &[PDOSTargets] {
         self.targets.as_ref()
     }
     pub fn gen_commands(&self) -> PDOSCommandGroup {
@@ -60,6 +63,35 @@ impl PDOSTask {
         let commands: Vec<PDOSCommand> =
             self.targets().iter().map(|t| t.translate(&cell)).collect();
         PDOSCommandGroup::new(commands)
+    }
+    fn get_orbital_ids(&self, command: PDOSCommand) -> Vec<usize> {
+        let pdos_weight_file =
+            fs::read(self.pdos_weight_filename()).expect("Reading .pdos_weights error");
+        let (_, pdos_weights) =
+            PDOSWeight::parse(&pdos_weight_file).expect("Parsing .pdos_weights file error!");
+        let species_arr = pdos_weights.species_no();
+        let ranks_arr = pdos_weights.rank_in_species();
+        let am_arr = pdos_weights.am_channel();
+        let commands_zip = command
+            .species()
+            .iter()
+            .zip(command.rank_in_species().iter())
+            .zip(command.am_channel().iter());
+        commands_zip
+            .flat_map(|combo| -> Vec<usize> {
+                let ((&spe, &rank), &am) = combo;
+                species_arr
+                    .iter()
+                    .zip(ranks_arr.iter())
+                    .zip(am_arr.iter())
+                    .enumerate()
+                    .filter(|(_, ((&spe_id, &rank_id), &am_id))| {
+                        spe_id == spe && rank_id == rank && am_id == am
+                    })
+                    .map(|(i, _)| i)
+                    .collect::<Vec<usize>>()
+            })
+            .collect()
     }
 }
 
@@ -72,13 +104,13 @@ deserialized directly from `.toml`.
     * am_channel: Vec<String> - "s", "p", "d", "f"
 */
 #[derive(Deserialize, Debug)]
-pub struct Targets {
+pub struct PDOSTargets {
     species: Vec<String>,
     rank: Vec<u8>,
     am_channel: Vec<String>,
 }
 
-impl Targets {
+impl PDOSTargets {
     pub fn new(species: Vec<String>, rank: Vec<u8>, am_channel: Vec<String>) -> Self {
         Self {
             species,
